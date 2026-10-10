@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kraken Funded 交易计算器</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --border: #2a2e3a;
+    --text: #e8eaed;
+    --muted: #8b93a7;
+    --accent: #5b8cff;
+    --green: #34d399;
+    --red: #f87171;
+    --yellow: #fbbf24;
+    --input-bg: #12141c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    padding: 20px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 1.6rem; margin-bottom: 6px; }
+  .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .card h2 { font-size: 1.1rem; margin-bottom: 16px; color: var(--accent); }
+  label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 4px; }
+  input, select {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 1rem;
+    margin-bottom: 12px;
+  }
+  input:focus, select:focus { outline: none; border-color: var(--accent); }
+  .row { display: flex; gap: 12px; }
+  .row > div { flex: 1; }
+  .result-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.95rem;
+  }
+  .result-item:last-child { border-bottom: none; }
+  .result-item .label { color: var(--muted); }
+  .result-item .value { font-weight: 600; }
+  .green { color: var(--green); }
+  .red { color: var(--red); }
+  .yellow { color: var(--yellow); }
+  .status-bar {
+    margin-top: 16px;
+    padding: 12px;
+    border-radius: 8px;
+    background: #12141c;
+    font-size: 0.9rem;
+  }
+  .progress {
+    height: 8px;
+    background: #2a2e3a;
+    border-radius: 4px;
+    margin: 8px 0;
+    overflow: hidden;
+    position: relative;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--red), var(--yellow), var(--green));
+    width: 0%;
+    transition: width 0.3s;
+  }
+  .note { font-size: 0.8rem; color: var(--muted); margin-top: 8px; }
+  button {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    margin-top: 8px;
+  }
+  button:hover { opacity: 0.9; }
+  .tier-btns { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tier-btns button {
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    margin: 0;
+  }
+  .tier-btns button.active { background: var(--accent); border-color: var(--accent); }
+</style>
+</head>
+<body>
+  <h1>Kraken Funded 交易计算器</h1>
+  <p class="subtitle">针对 Kraken Funded 挑战：+12% 目标 / -3% 静态回撤上限 | 无杠杆 | 无每日亏损限制</p>
+
+  <div class="grid">
+    <!-- 账户设置 -->
+    <div class="card">
+      <h2>账户与风险参数</h2>
+      <div class="tier-btns">
+        <button type="button" onclick="setTier(1000)" data-tier="1000">$1,000</button>
+        <button type="button" onclick="setTier(5000)" data-tier="5000">$5,000</button>
+        <button type="button" onclick="setTier(10000)" data-tier="10000">$10,000</button>
+      </div>
+      <label>起始余额 (USD)</label>
+      <input type="number" id="starting" value="1000" step="100">
+      <label>当前权益 (USD)</label>
+      <input type="number" id="current" value="1000" step="1">
+      <div class="row">
+        <div>
+          <label>单笔风险 (%)</label>
+          <input type="number" id="riskPct" value="0.4" step="0.1" min="0.1" max="1">
+        </div>
+        <div>
+          <label>目标盈亏比</label>
+          <input type="number" id="rr" value="2.5" step="0.1" min="1">
+        </div>
+      </div>
+      <p class="note">建议单笔风险 ≤0.5%。3% 总回撤空间有限，优先保命再进攻。</p>
+    </div>
+
+    <!-- 交易参数 -->
+    <div class="card">
+      <h2>入场计算</h2>
+      <label>方向</label>
+      <select id="direction">
+        <option value="long">做多 Long</option>
+        <option value="short">做空 Short</option>
+      </select>
+      <div class="row">
+        <div>
+          <label>入场价格</label>
+          <input type="number" id="entry" value="65000" step="0.01">
+        </div>
+        <div>
+          <label>止损价格</label>
+          <input type="number" id="sl" value="63500" step="0.01">
+        </div>
+      </div>
+      <button onclick="calculate()">计算仓位与目标</button>
+      <p class="note">止损价格必须合理。价格波动 + 0.04% 点差会影响实际成交。</p>
+    </div>
+  </div>
+
+  <div class="grid" style="margin-top: 20px;">
+    <!-- 计算结果 -->
+    <div class="card">
+      <h2>仓位与目标</h2>
+      <div id="tradeResults">
+        <div class="result-item"><span class="label">风险金额</span><span class="value" id="riskAmount">-</span></div>
+        <div class="result-item"><span class="label">建议仓位 (USD)</span><span class="value" id="positionSize">-</span></div>
+        <div class="result-item"><span class="label">止盈价格</span><span class="value green" id="tpPrice">-</span></div>
+        <div class="result-item"><span class="label">止损距离</span><span class="value" id="slDist">-</span></div>
+        <div class="result-item"><span class="label">止盈距离</span><span class="value" id="tpDist">-</span></div>
+        <div class="result-item"><span class="label">预期盈利 (若止盈)</span><span class="value green" id="expectedProfit">-</span></div>
+        <div class="result-item"><span class="label">预期亏损 (若止损)</span><span class="value red" id="expectedLoss">-</span></div>
+      </div>
+    </div>
+
+    <!-- 账户状态 -->
+    <div class="card">
+      <h2>挑战进度</h2>
+      <div id="accountStatus">
+        <div class="result-item"><span class="label">利润目标</span><span class="value green" id="target">-</span></div>
+        <div class="result-item"><span class="label">最大亏损线</span><span class="value red" id="floor">-</span></div>
+        <div class="result-item"><span class="label">距离目标</span><span class="value" id="toTarget">-</span></div>
+        <div class="result-item"><span class="label">距离亏损线</span><span class="value" id="toFloor">-</span></div>
+        <div class="result-item"><span class="label">当前回撤</span><span class="value" id="drawdown">-</span></div>
+      </div>
+      <div class="status-bar">
+        <div>进度条（亏损线 → 起始 → 目标）</div>
+        <div class="progress"><div class="progress-fill" id="progressFill"></div></div>
+        <div id="statusText" style="margin-top:6px;">-</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:20px;">
+    <h2>使用提示</h2>
+    <ul style="padding-left:20px; color:var(--muted); font-size:0.9rem;">
+      <li>Kraken Funded 为静态 3% 回撤，从起始余额计算，不随峰值上移。</li>
+      <li>无杠杆，按美元金额买卖。仓位大小即你投入的 USD 金额。</li>
+      <li>优先 BTC / ETH，等待高概率趋势结构，避免频繁交易。</li>
+      <li>单笔风险控制在 0.3%~0.5%，给自己足够的容错次数。</li>
+      <li>通过后规则相同，可随时提取 80% 利润（需先卖回 USD）。</li>
+    </ul>
+  </div>
+
+<script>
+function setTier(amount) {
+  document.getElementById('starting').value = amount;
+  document.getElementById('current').value = amount;
+  document.querySelectorAll('.tier-btns button').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tier == amount);
+  });
+  updateAccountStatus();
+}
+
+function updateAccountStatus() {
+  const starting = parseFloat(document.getElementById('starting').value) || 0;
+  const current = parseFloat(document.getElementById('current').value) || 0;
+  if (starting <= 0) return;
+
+  const target = starting * 1.12;
+  const floor = starting * 0.97;
+  const toTarget = target - current;
+  const toFloor = current - floor;
+  const ddPct = ((starting - current) / starting * 100);
+  const progressPct = Math.max(0, Math.min(100, ((current - floor) / (target - floor)) * 100));
+
+  document.getElementById('target').textContent = '$' + target.toFixed(2);
+  document.getElementById('floor').textContent = '$' + floor.toFixed(2);
+  document.getElementById('toTarget').textContent = (toTarget > 0 ? '+' : '') + '$' + toTarget.toFixed(2);
+  document.getElementById('toFloor').textContent = '$' + toFloor.toFixed(2);
+  document.getElementById('drawdown').textContent = ddPct.toFixed(2) + '%';
+  document.getElementById('drawdown').className = 'value ' + (ddPct > 2 ? 'red' : ddPct > 1 ? 'yellow' : '');
+
+  document.getElementById('progressFill').style.width = progressPct + '%';
+
+  let status = '';
+  if (current >= target) status = '✅ 已达到利润目标！';
+  else if (current <= floor) status = '❌ 已触及亏损线，挑战失败';
+  else if (toFloor < starting * 0.005) status = '⚠️ 接近亏损线，谨慎交易';
+  else status = '进行中 — 剩余安全空间 $' + toFloor.toFixed(2);
+  document.getElementById('statusText').textContent = status;
+}
+
+function calculate() {
+  const starting = parseFloat(document.getElementById('starting').value) || 0;
+  const current = parseFloat(document.getElementById('current').value) || starting;
+  const riskPct = parseFloat(document.getElementById('riskPct').value) || 0.4;
+  const rr = parseFloat(document.getElementById('rr').value) || 2.5;
+  const direction = document.getElementById('direction').value;
+  const entry = parseFloat(document.getElementById('entry').value);
+  const sl = parseFloat(document.getElementById('sl').value);
+
+  if (!entry || !sl || entry === sl) {
+    alert('请输入有效的入场价格和止损价格');
+    return;
+  }
+
+  const riskAmount = current * (riskPct / 100);
+  const slDistPct = Math.abs(entry - sl) / entry;
+  const positionSize = riskAmount / slDistPct; // USD notional
+
+  let tp;
+  if (direction === 'long') {
+    const riskPerUnit = entry - sl;
+    tp = entry + riskPerUnit * rr;
+  } else {
+    const riskPerUnit = sl - entry;
+    tp = entry - riskPerUnit * rr;
+  }
+
+  const tpDistPct = Math.abs(tp - entry) / entry * 100;
+  const slDistPctDisplay = slDistPct * 100;
+  const expectedProfit = positionSize * (Math.abs(tp - entry) / entry);
+  const expectedLoss = riskAmount;
+
+  document.getElementById('riskAmount').textContent = '$' + riskAmount.toFixed(2);
+  document.getElementById('positionSize').textContent = '$' + positionSize.toFixed(2);
+  document.getElementById('tpPrice').textContent = tp.toFixed(4);
+  document.getElementById('slDist').textContent = slDistPctDisplay.toFixed(2) + '%';
+  document.getElementById('tpDist').textContent = tpDistPct.toFixed(2) + '%';
+  document.getElementById('expectedProfit').textContent = '$' + expectedProfit.toFixed(2);
+  document.getElementById('expectedLoss').textContent = '$' + expectedLoss.toFixed(2);
+
+  updateAccountStatus();
+}
+
+// Init
+document.getElementById('starting').addEventListener('input', updateAccountStatus);
+document.getElementById('current').addEventListener('input', updateAccountStatus);
+setTier(1000);
+updateAccountStatus();
+</script>
+</body>
+</html>
